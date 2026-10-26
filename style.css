@@ -1,0 +1,8 @@
+body { margin: 0; font-family: Georgia, serif; background: #f5efe6; color: #3e2723; }
+header { background: #4e342e; color: #fbe9d0; padding: 48px 24px; text-align: center; }
+header h1 { margin: 0 0 8px; font-size: 40px; }
+main { max-width: 640px; margin: 32px auto; padding: 0 16px; }
+h2 { border-bottom: 2px solid #a1887f; padding-bottom: 6px; }
+ul { list-style: none; padding: 0; }
+li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #bcaaa4; }
+footer { text-align: center; padding: 24px; color: #6d4c41; font-size: 14px; }

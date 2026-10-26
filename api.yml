@@ -1,0 +1,16 @@
+---
+- name: "API call {{ zbx_method }}"
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    headers: "{{ {'Authorization': 'Bearer ' + zbx_token} if (zbx_token is defined and zbx_method != 'user.login') else {} }}"
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "{{ zbx_method }}"
+      params: "{{ zbx_params }}"
+      id: 1
+    return_content: true
+  register: zbx_call
+  failed_when: zbx_call.status != 200 or ('error' in zbx_call.json and not (zbx_allow_error | default(false)))
+  no_log: "{{ zbx_no_log | default(false) }}"

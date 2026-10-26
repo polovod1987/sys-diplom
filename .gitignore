@@ -1,0 +1,12 @@
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+crash.log
+*key*.json
+ansible/credentials/
+ansible/inventory/hosts.ini
+*.retry
+.DS_Store

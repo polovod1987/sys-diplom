@@ -1,0 +1,47 @@
+---
+- name: Check standby state
+  ansible.builtin.stat:
+    path: "{{ pg_data_dir }}/standby.signal"
+  register: standby_signal
+
+- name: Clone primary
+  when: not standby_signal.stat.exists
+  block:
+    - name: Stop PostgreSQL
+      ansible.builtin.service:
+        name: postgresql
+        state: stopped
+
+    - name: Remove empty cluster data
+      ansible.builtin.file:
+        path: "{{ pg_data_dir }}"
+        state: absent
+
+    - name: Base backup from primary
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - pg_basebackup
+          - -h
+          - "{{ pg_primary }}"
+          - -U
+          - replicator
+          - -D
+          - "{{ pg_data_dir }}"
+          - -R
+          - -X
+          - stream
+          - -S
+          - "{{ pg_slot }}"
+          - -c
+          - fast
+      environment:
+        PGPASSWORD: "{{ pg_replicator_password }}"
+      changed_when: true
+
+- name: Start PostgreSQL
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true

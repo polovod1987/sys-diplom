@@ -1,0 +1,105 @@
+---
+- name: Install Zabbix server and frontend
+  ansible.builtin.apt:
+    name:
+      - zabbix-server-pgsql
+      - zabbix-frontend-php
+      - "php{{ zabbix_php_version }}-pgsql"
+      - zabbix-sql-scripts
+      - zabbix-nginx-conf
+      - postgresql-client
+      - locales
+    state: present
+
+- name: Locales for frontend
+  ansible.builtin.lineinfile:
+    path: /etc/locale.gen
+    regexp: "^#?\\s*{{ item }} UTF-8"
+    line: "{{ item }} UTF-8"
+  loop:
+    - en_US.UTF-8
+    - ru_RU.UTF-8
+  notify: Generate locales
+
+- name: Check whether schema is imported
+  ansible.builtin.command:
+    argv: [psql, -h, "{{ zabbix_db_host }}", -U, "{{ zabbix_db_user }}", -d, "{{ zabbix_db_name }}", -tAc,
+           "select count(*) from information_schema.tables where table_name = 'users'"]
+  environment:
+    PGPASSWORD: "{{ zabbix_db_password }}"
+  register: zabbix_schema
+  changed_when: false
+
+- name: Import Zabbix schema
+  ansible.builtin.shell: |
+    set -o pipefail
+    zcat /usr/share/zabbix-sql-scripts/postgresql/server.sql.gz | psql -q -h {{ zabbix_db_host }} -U {{ zabbix_db_user }} -d {{ zabbix_db_name }}
+  args:
+    executable: /bin/bash
+  environment:
+    PGPASSWORD: "{{ zabbix_db_password }}"
+  when: zabbix_schema.stdout | trim == '0'
+  changed_when: true
+
+- name: Configure Zabbix server DB connection
+  ansible.builtin.lineinfile:
+    path: /etc/zabbix/zabbix_server.conf
+    regexp: "^#?\\s*{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    insertafter: "^# {{ item.key }}="
+  loop:
+    - { key: DBHost, value: "{{ zabbix_db_host }}" }
+    - { key: DBName, value: "{{ zabbix_db_name }}" }
+    - { key: DBUser, value: "{{ zabbix_db_user }}" }
+    - { key: DBPassword, value: "{{ zabbix_db_password }}" }
+  no_log: true
+  notify: Restart zabbix-server
+
+- name: Frontend config
+  ansible.builtin.template:
+    src: zabbix.conf.php.j2
+    dest: /etc/zabbix/web/zabbix.conf.php
+    owner: www-data
+    group: www-data
+    mode: "0600"
+
+- name: Zabbix frontend on port 80
+  ansible.builtin.lineinfile:
+    path: /etc/zabbix/nginx.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^\s*#?\s*listen\s+\d+', line: "        listen 80 default_server;" }
+    - { regexp: '^\s*#?\s*server_name\s', line: "        server_name _;" }
+  notify: Reload nginx
+
+- name: Disable default nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx
+
+- name: PHP timezone
+  ansible.builtin.lineinfile:
+    path: /etc/zabbix/php-fpm.conf
+    regexp: '^;?\s*php_value\[date.timezone\]'
+    line: "php_value[date.timezone] = {{ zabbix_timezone }}"
+  notify: Restart php-fpm
+
+- name: Start services
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - zabbix-server
+    - "php{{ zabbix_php_version }}-fpm"
+    - nginx
+
+- name: Apply config now
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for Zabbix server trapper port
+  ansible.builtin.wait_for:
+    port: 10051
+    timeout: 120

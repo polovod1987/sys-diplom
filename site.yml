@@ -1,0 +1,69 @@
+---
+- name: Base setup
+  hosts: all
+  gather_facts: false
+  roles:
+    - common
+
+- name: PostgreSQL primary
+  hosts: db_primary
+  gather_facts: false
+  become: true
+  roles:
+    - postgresql
+
+- name: PostgreSQL standby
+  hosts: db_secondary
+  gather_facts: false
+  become: true
+  roles:
+    - postgresql
+
+- name: Zabbix server and frontend
+  hosts: zabbix
+  gather_facts: false
+  become: true
+  roles:
+    - zabbix_server
+
+- name: Zabbix agents
+  hosts: all
+  gather_facts: false
+  become: true
+  roles:
+    - zabbix_agent
+
+- name: Web servers
+  hosts: web
+  gather_facts: false
+  become: true
+  roles:
+    - nginx
+
+- name: Elasticsearch
+  hosts: elastic
+  gather_facts: false
+  become: true
+  roles:
+    - elasticsearch
+
+- name: Kibana
+  hosts: kibana
+  gather_facts: false
+  become: true
+  roles:
+    - kibana
+
+- name: Filebeat on web servers
+  hosts: web
+  gather_facts: false
+  become: true
+  roles:
+    - filebeat
+
+- name: Zabbix hosts, templates and dashboard
+  hosts: zabbix
+  gather_facts: false
+  become: false
+  roles:
+    - zabbix_config
