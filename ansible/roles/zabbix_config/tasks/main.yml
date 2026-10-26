@@ -1,0 +1,133 @@
+---
+- name: Wait for Zabbix API
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    body: { jsonrpc: "2.0", method: apiinfo.version, params: {}, id: 1 }
+  register: zbx_ping
+  until: zbx_ping.status == 200
+  retries: 30
+  delay: 5
+
+- name: Login with project password
+  ansible.builtin.include_tasks: api.yml
+  vars:
+    zbx_method: user.login
+    zbx_params: { username: Admin, password: "{{ zabbix_admin_password }}" }
+    zbx_allow_error: true
+    zbx_no_log: true
+
+- name: Check whether Admin still has default password
+  ansible.builtin.set_fact:
+    zbx_change_password: "{{ 'error' in zbx_call.json }}"
+
+- name: Change default Admin password
+  when: zbx_change_password | bool
+  block:
+    - name: Login with default password
+      ansible.builtin.include_tasks: api.yml
+      vars:
+        zbx_method: user.login
+        zbx_params: { username: Admin, password: "{{ zabbix_default_password }}" }
+        zbx_no_log: true
+
+    - name: Remember temporary token
+      ansible.builtin.set_fact:
+        zbx_token: "{{ zbx_call.json.result }}"
+      no_log: true
+
+    - name: Find Admin user
+      ansible.builtin.include_tasks: api.yml
+      vars:
+        zbx_method: user.get
+        zbx_params: { filter: { username: Admin }, output: [userid] }
+
+    - name: Set new Admin password
+      ansible.builtin.include_tasks: api.yml
+      vars:
+        zbx_method: user.update
+        zbx_params:
+          userid: "{{ zbx_call.json.result[0].userid }}"
+          current_passwd: "{{ zabbix_default_password }}"
+          passwd: "{{ zabbix_admin_password }}"
+        zbx_no_log: true
+
+    - name: Login with new password
+      ansible.builtin.include_tasks: api.yml
+      vars:
+        zbx_method: user.login
+        zbx_params: { username: Admin, password: "{{ zabbix_admin_password }}" }
+        zbx_no_log: true
+
+- name: Remember API token
+  ansible.builtin.set_fact:
+    zbx_token: "{{ zbx_call.json.result }}"
+  no_log: true
+
+- name: Import nginx template
+  ansible.builtin.include_tasks: api.yml
+  vars:
+    zbx_method: configuration.import
+    zbx_params:
+      format: yaml
+      source: "{{ lookup('ansible.builtin.file', 'template_nginx.yaml') }}"
+      rules: "{{ zbx_import_rules }}"
+
+- name: Import hosts
+  ansible.builtin.include_tasks: api.yml
+  vars:
+    zbx_method: configuration.import
+    zbx_params:
+      format: yaml
+      source: "{{ lookup('ansible.builtin.template', 'hosts.yaml.j2') }}"
+      rules: "{{ zbx_import_rules }}"
+
+- name: Find default "Zabbix server" host
+  ansible.builtin.include_tasks: api.yml
+  vars:
+    zbx_method: host.get
+    zbx_params: { filter: { host: "Zabbix server" }, output: [hostid] }
+
+- name: Delete default host, it duplicates the zabbix VM
+  ansible.builtin.include_tasks: api.yml
+  vars:
+    zbx_method: host.delete
+    zbx_params: "{{ zbx_call.json.result | map(attribute='hostid') | list }}"
+  when: zbx_call.json.result | length > 0
+
+- name: Get host group ids
+  ansible.builtin.include_tasks: api.yml
+  vars:
+    zbx_method: hostgroup.get
+    zbx_params: { filter: { name: [Diplom, Diplom/web] }, output: [groupid, name] }
+
+- name: Remember group ids
+  ansible.builtin.set_fact:
+    zbx_groupid: "{{ (zbx_call.json.result | selectattr('name', 'equalto', 'Diplom') | first).groupid }}"
+    zbx_web_groupid: "{{ (zbx_call.json.result | selectattr('name', 'equalto', 'Diplom/web') | first).groupid }}"
+
+- name: Find dashboard
+  ansible.builtin.include_tasks: api.yml
+  vars:
+    zbx_method: dashboard.get
+    zbx_params: { filter: { name: "{{ zbx_dashboard_name }}" }, output: [dashboardid] }
+
+- name: Dashboard definition
+  ansible.builtin.set_fact:
+    zbx_dashboard: "{{ lookup('ansible.builtin.template', 'dashboard.json.j2') | from_json }}"
+    zbx_dashboard_ids: "{{ zbx_call.json.result | map(attribute='dashboardid') | list }}"
+
+- name: Create USE dashboard
+  ansible.builtin.include_tasks: api.yml
+  vars:
+    zbx_method: dashboard.create
+    zbx_params: "{{ zbx_dashboard }}"
+  when: zbx_dashboard_ids | length == 0
+
+- name: Update USE dashboard
+  ansible.builtin.include_tasks: api.yml
+  vars:
+    zbx_method: dashboard.update
+    zbx_params: "{{ zbx_dashboard | combine({'dashboardid': zbx_dashboard_ids[0]}) }}"
+  when: zbx_dashboard_ids | length > 0

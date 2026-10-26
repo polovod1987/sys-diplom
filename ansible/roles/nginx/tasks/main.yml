@@ -1,0 +1,42 @@
+---
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+
+- name: Site files
+  ansible.builtin.copy:
+    src: site/
+    dest: /var/www/diplom/
+    owner: root
+    group: root
+    mode: "0644"
+    directory_mode: "0755"
+
+- name: Site config
+  ansible.builtin.template:
+    src: diplom.conf.j2
+    dest: /etc/nginx/sites-available/diplom
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Enable site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/diplom
+    dest: /etc/nginx/sites-enabled/diplom
+    state: link
+  notify: Reload nginx
+
+- name: Disable default site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx
+
+- name: Start nginx
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true

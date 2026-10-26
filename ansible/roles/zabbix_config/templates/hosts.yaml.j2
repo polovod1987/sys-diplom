@@ -1,0 +1,41 @@
+zabbix_export:
+  version: '7.0'
+  host_groups:
+    - uuid: {{ zbx_group_uuid }}
+      name: Diplom
+    - uuid: {{ zbx_web_group_uuid }}
+      name: Diplom/web
+  hosts:
+{% for h in groups['all'] | sort %}
+{% set short = h.split('.')[0] %}
+    - host: {{ short }}
+      name: {{ short }}
+      groups:
+        - name: Diplom
+{% if h in groups['web'] %}
+        - name: Diplom/web
+{% endif %}
+      templates:
+        - name: 'Linux by Zabbix agent active'
+{% if h in groups['web'] %}
+        - name: 'Diplom nginx'
+{% endif %}
+{% if h in groups['zabbix'] %}
+        - name: 'Zabbix server health'
+{% endif %}
+      tags:
+        - tag: fqdn
+          value: {{ h }}
+{% if h in groups['db_primary'] %}
+        - tag: postgres
+          value: primary
+{% endif %}
+{% if h in groups['db_secondary'] %}
+        - tag: postgres
+          value: standby
+{% endif %}
+{% if h in groups['zabbix'] %}
+        - tag: zabbix
+          value: server
+{% endif %}
+{% endfor %}

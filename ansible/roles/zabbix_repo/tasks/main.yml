@@ -1,0 +1,8 @@
+---
+- name: Install zabbix-release package
+  ansible.builtin.apt:
+    deb: "{{ zabbix_repo_deb }}"
+  notify: Update apt cache
+
+- name: Refresh apt cache now
+  ansible.builtin.meta: flush_handlers

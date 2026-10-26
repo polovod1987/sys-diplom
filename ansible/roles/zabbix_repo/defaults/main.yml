@@ -1,0 +1,5 @@
+---
+zabbix_os: "{{ ansible_distribution | lower }}"
+zabbix_os_release: "{{ ansible_distribution_version if ansible_distribution == 'Ubuntu' else ansible_distribution_major_version }}"
+zabbix_repo_base: "https://repo.zabbix.com/zabbix/{{ zabbix_version }}/{{ zabbix_os }}/pool/main/z/zabbix-release"
+zabbix_repo_deb: "{{ zabbix_repo_base }}/zabbix-release_latest_{{ zabbix_version }}+{{ zabbix_os }}{{ zabbix_os_release }}_all.deb"

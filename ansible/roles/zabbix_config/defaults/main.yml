@@ -1,0 +1,15 @@
+---
+zabbix_api_url: http://127.0.0.1/api_jsonrpc.php
+zabbix_default_password: zabbix
+zbx_group_uuid: 9c1e5b0a7d2f4e8b9a3c6d1e2f4a5b7c
+zbx_web_group_uuid: 3f6a2d8c1b4e4a9d8c7b5e2f1a0d3c6b
+zbx_dashboard_name: Diplom USE
+zbx_import_rules:
+  template_groups: { createMissing: true }
+  host_groups: { createMissing: true }
+  templates: { createMissing: true, updateExisting: true }
+  hosts: { createMissing: true, updateExisting: true }
+  items: { createMissing: true, updateExisting: true }
+  triggers: { createMissing: true, updateExisting: true }
+  templateLinkage: { createMissing: true }
+  valueMaps: { createMissing: true, updateExisting: true }

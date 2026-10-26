@@ -1,0 +1,48 @@
+---
+- name: Wait for SSH through bastion
+  ansible.builtin.wait_for_connection:
+    timeout: 600
+
+- name: Gather facts
+  ansible.builtin.setup:
+
+- name: Wait for cloud-init to finish
+  ansible.builtin.command: cloud-init status --wait
+  changed_when: false
+  failed_when: false
+
+- name: Debian 11 repositories from archive
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list
+    content: |
+      deb http://archive.debian.org/debian bullseye main
+      deb http://archive.debian.org/debian-security bullseye-security main
+    mode: "0644"
+  when: ansible_distribution == 'Debian' and ansible_distribution_major_version == '11'
+
+- name: Skip apt Contents indexes on small disks
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/90no-contents
+    content: |
+      Acquire::IndexTargets::deb::Contents-deb::DefaultEnabled "false";
+    mode: "0644"
+  when: ansible_distribution == 'Debian'
+
+- name: Refresh apt cache on Debian
+  become: true
+  ansible.builtin.shell: rm -f /var/lib/apt/lists/*Contents* && apt-get update -qq
+  changed_when: false
+  when: ansible_distribution == 'Debian'
+
+- name: Install base packages
+  become: true
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - acl
+    update_cache: true
+    cache_valid_time: 3600

@@ -1,0 +1,44 @@
+---
+- name: Install Elasticsearch
+  ansible.builtin.apt:
+    name: "elasticsearch={{ elk_version }}"
+    state: present
+
+- name: Elasticsearch config
+  ansible.builtin.template:
+    src: elasticsearch.yml.j2
+    dest: /etc/elasticsearch/elasticsearch.yml
+    owner: root
+    group: elasticsearch
+    mode: "0660"
+  notify: Restart elasticsearch
+
+- name: JVM heap
+  ansible.builtin.copy:
+    dest: /etc/elasticsearch/jvm.options.d/heap.options
+    content: |
+      -Xms{{ es_heap }}
+      -Xmx{{ es_heap }}
+    owner: root
+    group: elasticsearch
+    mode: "0660"
+  notify: Restart elasticsearch
+
+- name: Start Elasticsearch
+  ansible.builtin.systemd_service:
+    name: elasticsearch
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Apply config now
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for cluster health
+  ansible.builtin.uri:
+    url: http://127.0.0.1:9200/_cluster/health
+    return_content: true
+  register: es_health
+  until: es_health.status == 200 and es_health.json.status in ['green', 'yellow']
+  retries: 30
+  delay: 10

@@ -1,0 +1,3 @@
+---
+zabbix_php_version: "{{ '8.1' if ansible_distribution == 'Ubuntu' else '8.2' }}"
+zabbix_timezone: Europe/Moscow

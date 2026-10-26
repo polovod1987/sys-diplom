@@ -1,0 +1,43 @@
+---
+- name: Replication role
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: replicator
+    password: "{{ pg_replicator_password }}"
+    role_attr_flags: REPLICATION,LOGIN
+
+- name: Zabbix role without superuser rights
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ zabbix_db_user }}"
+    password: "{{ zabbix_db_password }}"
+    role_attr_flags: LOGIN,NOSUPERUSER,NOCREATEDB,NOCREATEROLE
+
+- name: Zabbix database
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ zabbix_db_name }}"
+    owner: "{{ zabbix_db_user }}"
+    encoding: UTF-8
+    template: template0
+
+- name: Only owner may connect to zabbix database
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    login_db: postgres
+    objs: "{{ zabbix_db_name }}"
+    type: database
+    privs: CONNECT
+    roles: PUBLIC
+    state: absent
+
+- name: Physical replication slot
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_slot:
+    name: "{{ pg_slot }}"
+    slot_type: physical

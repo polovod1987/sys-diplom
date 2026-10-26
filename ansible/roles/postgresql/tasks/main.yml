@@ -1,0 +1,61 @@
+---
+- name: Keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+  when: ansible_distribution == 'Debian'
+
+- name: Add PGDG archive key
+  ansible.builtin.get_url:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    dest: /etc/apt/keyrings/pgdg.asc
+    mode: "0644"
+  when: ansible_distribution == 'Debian'
+
+- name: Add PGDG archive repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/pgdg.asc] https://apt-archive.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+    filename: pgdg
+    update_cache: true
+  when: ansible_distribution == 'Debian'
+
+- name: Install PostgreSQL
+  ansible.builtin.apt:
+    name:
+      - "postgresql-{{ pg_version }}"
+      - python3-psycopg2
+    state: present
+
+- name: PostgreSQL settings
+  ansible.builtin.template:
+    src: diplom.conf.j2
+    dest: "{{ pg_conf_dir }}/conf.d/diplom.conf"
+    owner: postgres
+    group: postgres
+    mode: "0644"
+  notify: Restart postgresql
+
+- name: Allow zabbix and replication from VPC
+  community.postgresql.postgresql_pg_hba:
+    dest: "{{ pg_conf_dir }}/pg_hba.conf"
+    contype: host
+    databases: "{{ item.db }}"
+    users: "{{ item.user }}"
+    source: "{{ vpc_cidr }}"
+    method: scram-sha-256
+  loop:
+    - { db: zabbix, user: zabbix }
+    - { db: replication, user: replicator }
+  notify: Restart postgresql
+
+- name: Apply config now
+  ansible.builtin.meta: flush_handlers
+
+- name: Configure primary
+  ansible.builtin.include_tasks: primary.yml
+  when: inventory_hostname in groups['db_primary']
+
+- name: Configure standby
+  ansible.builtin.include_tasks: standby.yml
+  when: inventory_hostname in groups['db_secondary']

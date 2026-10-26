@@ -1,0 +1,38 @@
+---
+- name: Install Filebeat
+  ansible.builtin.apt:
+    name: "filebeat={{ elk_version }}"
+    state: present
+
+- name: Filebeat config
+  ansible.builtin.template:
+    src: filebeat.yml.j2
+    dest: /etc/filebeat/filebeat.yml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart filebeat
+
+- name: Nginx module
+  ansible.builtin.template:
+    src: nginx.yml.j2
+    dest: /etc/filebeat/modules.d/nginx.yml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart filebeat
+
+- name: Load ingest pipelines and Kibana dashboards
+  ansible.builtin.shell: >-
+    filebeat setup --pipelines --modules nginx -M "nginx.access.enabled=true" -M "nginx.error.enabled=true"
+    && filebeat setup --dashboards
+    && touch /var/lib/filebeat/.setup_done
+  args:
+    creates: /var/lib/filebeat/.setup_done
+  run_once: true
+
+- name: Start Filebeat
+  ansible.builtin.service:
+    name: filebeat
+    state: started
+    enabled: true

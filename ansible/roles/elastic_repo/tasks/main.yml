@@ -1,0 +1,15 @@
+---
+- name: Elastic signing key
+  ansible.builtin.copy:
+    src: elastic.asc
+    dest: /usr/share/keyrings/elastic.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Elastic APT repo (Yandex mirror)
+  ansible.builtin.apt_repository:
+    repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/elastic.asc] {{ elastic_repo_url }} stable main"
+    filename: elastic-8.x
+    state: present
+    update_cache: true

@@ -1,0 +1,54 @@
+---
+- name: Install Kibana
+  ansible.builtin.apt:
+    name: "kibana={{ elk_version }}"
+    state: present
+
+- name: Kibana config
+  ansible.builtin.template:
+    src: kibana.yml.j2
+    dest: /etc/kibana/kibana.yml
+    owner: root
+    group: kibana
+    mode: "0660"
+  notify: Restart kibana
+
+- name: Start Kibana
+  ansible.builtin.systemd_service:
+    name: kibana
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Apply config now
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for Kibana
+  ansible.builtin.uri:
+    url: http://127.0.0.1:5601/api/status
+    return_content: true
+  register: kibana_status
+  until: kibana_status.status == 200 and kibana_status.json.status.overall.level == 'available'
+  retries: 40
+  delay: 10
+
+- name: Get data views
+  ansible.builtin.uri:
+    url: http://127.0.0.1:5601/api/data_views
+    return_content: true
+  register: kibana_views
+
+- name: Data view for nginx logs
+  ansible.builtin.uri:
+    url: http://127.0.0.1:5601/api/data_views/data_view
+    method: POST
+    headers:
+      kbn-xsrf: "true"
+    body_format: json
+    body:
+      data_view:
+        title: "filebeat-*"
+        name: "nginx logs (filebeat-*)"
+        timeFieldName: "@timestamp"
+  when: "'filebeat-*' not in (kibana_views.json.data_view | map(attribute='title') | list)"
+  changed_when: true

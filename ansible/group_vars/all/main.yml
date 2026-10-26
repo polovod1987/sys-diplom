@@ -1,0 +1,18 @@
+---
+credentials_dir: "{{ playbook_dir }}/credentials"
+
+zabbix_version: "7.0"
+zabbix_fqdn: "{{ groups['zabbix'][0] }}"
+zabbix_db_host: "{{ groups['db_primary'][0] }}"
+zabbix_db_name: zabbix
+zabbix_db_user: zabbix
+zabbix_db_password: "{{ lookup('ansible.builtin.password', credentials_dir + '/zabbix_db', length=24, chars=['ascii_letters', 'digits']) }}"
+zabbix_admin_password: "{{ lookup('ansible.builtin.password', credentials_dir + '/zabbix_admin', length=16, chars=['ascii_letters', 'digits']) }}"
+pg_replicator_password: "{{ lookup('ansible.builtin.password', credentials_dir + '/pg_replicator', length=24, chars=['ascii_letters', 'digits']) }}"
+
+vpc_cidr: 10.10.0.0/16
+
+elk_version: "8.19.22"
+elastic_repo_url: https://mirror.yandex.ru/mirrors/elastic/8/
+elastic_fqdn: "{{ groups['elastic'][0] }}"
+kibana_fqdn: "{{ groups['kibana'][0] }}"

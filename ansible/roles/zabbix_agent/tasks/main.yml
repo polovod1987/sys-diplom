@@ -1,0 +1,31 @@
+---
+- name: Install Zabbix agent
+  ansible.builtin.apt:
+    name: zabbix-agent
+    state: present
+
+- name: Configure Zabbix agent
+  ansible.builtin.lineinfile:
+    path: /etc/zabbix/zabbix_agentd.conf
+    regexp: "^#?\\s*{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+  loop:
+    - { key: Server, value: "{{ zabbix_agent_server }}" }
+    - { key: ServerActive, value: "{{ zabbix_agent_server }}" }
+    - { key: Hostname, value: "{{ zabbix_agent_hostname }}" }
+    - { key: RefreshActiveChecks, value: "60" }
+  notify: Restart zabbix-agent
+
+- name: Let agent read nginx logs
+  ansible.builtin.user:
+    name: zabbix
+    groups: adm
+    append: true
+  when: inventory_hostname in groups['web']
+  notify: Restart zabbix-agent
+
+- name: Start Zabbix agent
+  ansible.builtin.service:
+    name: zabbix-agent
+    state: started
+    enabled: true
